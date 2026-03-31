@@ -1,0 +1,71 @@
+Context & Role:
+You are a Senior Systems Architect and Full-Stack Developer. I need you to build a custom Version Control System (VCS) named "MyVCS". It must strictly follow the modular team breakdown, the provided entity-relationship architecture, and the specific tech stack below. Note: There is strictly no AI agent integration planned within the application's features.
+
+Technical Stack:
+
+Core Engine: C++ (Performance-heavy hashing, compression, diffing, and tree building).
+
+CLI & Middleware: Node.js / JavaScript (CLI orchestration, staging logic, database sync).
+
+Database: Supabase (Remote storage for Users, Access Control, and mirrored Commit/Branch metadata).
+
+Front-End UI: React, HTML, JS, CSS (A visual dashboard to view the Supabase metadata).
+
+Architecture & Module Breakdown (By Team Member):
+
+1. The Foundation: Object Storage (Author: Akshat)
+
+Tech: C++ (vcs-engine/src/storage.cpp)
+
+ER Entities: RECORD_VERSION, PAGE, TABLE_META
+
+Tasks: Implement content-addressable storage. Write logic to read a file, hash it (SHA-1), compress it (zlib), and save it as a "Blob" in a local .myvcs/objects/ directory.
+
+2. The Middleware: Index & Staging (Author: Kevalina)
+
+Tech: Node.js (vcs-cli/src/staging.js)
+
+ER Entities: TREE_ENTRY (Transient/Staging state)
+
+Tasks: Manage the .myvcs/index file (a manifest of tracked files). Implement the add command logic by comparing current file hashes against the stored index.
+
+3. The Structuralist: Tree & Commit Architecture (Author: Raymond)
+
+Tech: C++ (vcs-engine/src/history.cpp)
+
+ER Entities: COMMIT, TREE, TREE_ENTRY
+
+Tasks: Write recursive logic to convert the Index into a hierarchical Merkle TREE structure. Package a tree_hash, parent_hash, author_id, and message into a persistent COMMIT object to create the history chain.
+
+4. The Navigator: Branch & Reference Manager (Author: Anoushka)
+
+Tech: Node.js (vcs-cli/src/refs.js)
+
+ER Entities: HEAD, REFERENCE, BRANCH
+
+Tasks: Handle local pointers in .myvcs/refs/heads/. Implement the log command to traverse the commit chain backward. Sync branch pointer updates to Supabase.
+
+5. The Analyst: Diff & Status Engine (Author: Shlok)
+
+Tech: C++ (vcs-engine/src/diff.cpp)
+
+Tasks: Implement a fast line-by-line comparison algorithm. Provide the logic for the status command to identify "Modified," "Deleted," or "Untracked" files by comparing the working directory against the index/trees.
+
+6. The Integration Lead: CLI, Checkout & DB (Author: Moksh)
+
+Tech: Node.js (vcs-cli/src/main.js & vcs-cli/src/supabase.js)
+
+ER Entities: USER, ACCESS_CONTROL, TRANSACTION
+
+Tasks: Build the CLI using libraries like commander or yargs. Implement the checkout logic (fetching blobs from storage and overwriting local files). Handle user authentication via Supabase and ensure all local commit/branch metadata is mirrored to Supabase.
+
+System Data Flow & Instructions:
+
+Bridging: The Node.js CLI must act as the orchestrator, spawning child processes to execute the C++ compiled binaries for heavy lifting (hashing, diffing).
+
+State Separation: Physical blobs and local files remain strictly on the user's local disk. Supabase is used only for tracking relational metadata (Users, Permissions, Commit History, Branches) and powering the React web dashboard.
+
+Naming: Ensure all classes, database schemas, and variables strictly map to the ER diagram names (e.g., commit_hash, ref_name, user_id).
+
+Deliverable:
+Provide the initial boilerplate and folder structure for the entire workspace (vcs-engine, vcs-cli, web-dashboard). Then, write the foundational C++ code for object hashing/compression (Akshat's module) and the Node.js CLI entry point (Moksh's module) that successfully calls the C++ binary.
