@@ -38,48 +38,49 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
+    <div className="min-h-screen bg-vcs-dark flex items-center justify-center">
+      <div className="bg-vcs-surface rounded-xl border border-vcs-border shadow-2xl p-8 w-full max-w-md animate-slide-up">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">
-            <span className="text-vcs-primary">My</span>VCS
+            <span className="text-vcs-primary">My</span>
+            <span className="text-zinc-100">VCS</span>
           </h1>
-          <p className="text-gray-500 mt-2">
+          <p className="text-zinc-500 mt-2">
             {mode === 'login' ? 'Sign in to your account' : 'Create a new account'}
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-4 animate-fade-in">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-gray-700 text-sm font-medium mb-2">
+            <label className="block text-zinc-300 text-sm font-medium mb-2">
               Email
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-vcs-primary focus:border-transparent"
+              className="w-full px-4 py-3 bg-vcs-dark border border-vcs-border rounded-lg text-zinc-100 placeholder-zinc-600 transition-smooth focus:ring-2 focus:ring-vcs-primary focus:border-transparent focus:outline-none"
               placeholder="you@example.com"
               required
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 text-sm font-medium mb-2">
+            <label className="block text-zinc-300 text-sm font-medium mb-2">
               Password
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-vcs-primary focus:border-transparent"
-              placeholder="••••••••"
+              className="w-full px-4 py-3 bg-vcs-dark border border-vcs-border rounded-lg text-zinc-100 placeholder-zinc-600 transition-smooth focus:ring-2 focus:ring-vcs-primary focus:border-transparent focus:outline-none"
+              placeholder="Enter your password"
               required
             />
           </div>
@@ -87,16 +88,23 @@ function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-vcs-primary hover:bg-vcs-secondary text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+            className="w-full bg-vcs-primary hover:bg-vcs-secondary text-white font-medium py-3 px-4 rounded-lg transition-smooth hover:shadow-lg hover:shadow-vcs-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Loading...' : (mode === 'login' ? 'Sign In' : 'Sign Up')}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                Loading...
+              </span>
+            ) : (
+              mode === 'login' ? 'Sign In' : 'Sign Up'
+            )}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <button
             onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-            className="text-vcs-primary hover:underline"
+            className="text-vcs-primary hover:text-vcs-secondary transition-smooth"
           >
             {mode === 'login' 
               ? "Don't have an account? Sign up" 

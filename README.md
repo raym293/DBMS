@@ -337,11 +337,11 @@ npm run dev
 ```
 
 **Pages to test:**
-- `/` - Dashboard with stats
-- `/commits` - Commit history table
-- `/branches` - Branch cards
-- `/users` - User list with permissions
-- `/login` - Authentication form
+- `/` - Dashboard with stats (dark theme, animated cards)
+- `/commits` - Commit history table (dark theme, hover effects)
+- `/branches` - Branch cards (dark theme, entrance animations)
+- `/users` - User list with permissions (dark theme, staggered animations)
+- `/login` - Authentication form (dark theme, smooth focus states)
 
 > **Note:** Without Supabase credentials, pages show "No data" states. This is expected.
 

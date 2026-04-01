@@ -93,6 +93,7 @@ const result = await spawnCppBinary('myvcs-storage', ['hash-object', file], cwd)
 - **Styling**: TailwindCSS
 - **Routing**: React Router DOM
 - **State**: Local state (no Redux)
+- **Theme**: Dark theme with smooth animations
 
 Pages are in `web-dashboard/src/pages/`. Supabase client is in `web-dashboard/src/lib/supabase.js`.
 

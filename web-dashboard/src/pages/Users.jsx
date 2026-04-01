@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
 
+// Loading spinner
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="relative">
+      <div className="w-12 h-12 border-4 border-vcs-border rounded-full animate-spin-slow border-t-vcs-primary"></div>
+    </div>
+  </div>
+)
+
 function Users() {
   const [users, setUsers] = useState([])
   const [accessControls, setAccessControls] = useState([])
@@ -31,55 +40,55 @@ function Users() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-xl text-gray-500">Loading...</div>
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   return (
-    <div>
-      <h2 className="text-3xl font-bold text-gray-800 mb-8">Users & Access Control</h2>
+    <div className="animate-fade-in">
+      <h2 className="text-3xl font-bold text-zinc-100 mb-8">Users & Access Control</h2>
 
       {users.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-md p-8 text-center">
-          <p className="text-gray-500 text-lg">No users found.</p>
-          <p className="text-gray-400 mt-2">Connect your Supabase instance to see users.</p>
+        <div className="bg-vcs-surface rounded-xl border border-vcs-border p-8 text-center">
+          <p className="text-zinc-400 text-lg">No users found.</p>
+          <p className="text-zinc-500 mt-2">Connect your Supabase instance to see users.</p>
         </div>
       ) : (
         <div className="space-y-6">
-          {users.map((user) => {
+          {users.map((user, index) => {
             const permissions = getUserPermissions(user.id)
             return (
-              <div key={user.id} className="bg-white rounded-lg shadow-md p-6">
+              <div 
+                key={user.id} 
+                className="bg-vcs-surface rounded-xl border border-vcs-border p-6 transition-smooth hover:border-vcs-primary/50 hover:shadow-lg hover:shadow-vcs-primary/5 animate-slide-up"
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-vcs-primary rounded-full flex items-center justify-center text-white text-xl font-bold">
+                    <div className="w-12 h-12 bg-gradient-to-br from-vcs-primary to-vcs-secondary rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-vcs-primary/25">
                       {user.username?.[0]?.toUpperCase() || '?'}
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-gray-800">{user.username}</h3>
-                      <p className="text-gray-500 text-sm">{user.email}</p>
+                      <h3 className="text-lg font-bold text-zinc-100">{user.username}</h3>
+                      <p className="text-zinc-500 text-sm">{user.email}</p>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm ${
+                  <span className={`px-3 py-1 rounded-full text-sm border ${
                     user.role === 'admin' 
-                      ? 'bg-purple-100 text-purple-800'
-                      : 'bg-blue-100 text-blue-800'
+                      ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                      : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
                   }`}>
                     {user.role || 'user'}
                   </span>
                 </div>
 
                 {permissions.length > 0 && (
-                  <div className="mt-4 pt-4 border-t">
-                    <h4 className="text-sm font-medium text-gray-600 mb-2">Permissions</h4>
+                  <div className="mt-4 pt-4 border-t border-vcs-border">
+                    <h4 className="text-sm font-medium text-zinc-500 mb-2">Permissions</h4>
                     <div className="flex flex-wrap gap-2">
                       {permissions.map((perm) => (
                         <span
                           key={perm.id}
-                          className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm"
+                          className="bg-vcs-surface-hover text-zinc-300 px-3 py-1 rounded-full text-sm border border-vcs-border transition-smooth hover:border-zinc-500"
                         >
                           {perm.permission_type}: {perm.resource}
                         </span>
@@ -88,7 +97,7 @@ function Users() {
                   </div>
                 )}
 
-                <div className="mt-4 text-sm text-gray-400">
+                <div className="mt-4 text-sm text-zinc-600">
                   Joined: {new Date(user.created_at).toLocaleDateString()}
                 </div>
               </div>
