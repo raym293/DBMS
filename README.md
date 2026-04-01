@@ -67,6 +67,15 @@ DBMS/
 │   │   ├── components/
 │   │   └── pages/
 │   └── package.json
+├── tests/                # Test suite
+│   ├── run.sh            # Unified test runner
+│   ├── quick.sh          # Fast smoke test
+│   ├── basic.sh          # Core functionality tests
+│   ├── stress.sh         # Heavy workload tests
+│   └── seed-data.sql     # Supabase test data
+├── supabase-schema.sql   # Database schema
+├── instructions.md       # Command reference
+├── agent.md              # AI agent guidelines
 └── README.md
 ```
 
@@ -131,7 +140,40 @@ sudo apt-get install libssl-dev zlib1g-dev build-essential
 
 ## Building
 
-### C++ Engine
+### Quick Start (All Components)
+
+From the project root, use the universal build command:
+
+```bash
+make              # Build everything (C++ engine + install npm deps)
+make install      # Build + install CLI globally
+make test         # Run automated test suite
+make clean        # Clean all builds
+```
+
+### All Make Targets
+
+| Command | Description |
+|---------|-------------|
+| `make` | Build all components (engine + CLI + dashboard) |
+| `make engine` | Build C++ engine only |
+| `make cli` | Install CLI dependencies only |
+| `make dashboard` | Install dashboard dependencies only |
+| `make install` | Build CLI and install globally (`myvcs` command) |
+| `make uninstall` | Remove global CLI installation |
+| `make clean` | Clean all builds and node_modules |
+| `make clean-engine` | Clean only C++ builds (faster) |
+| `make test` | Run basic test suite |
+| `make test-all` | Run all tests (basic + stress) |
+| `make test-quick` | Quick smoke test (~2s) |
+| `make test-stress` | Full stress test (~30s) |
+| `make run-dash` | Start dashboard dev server |
+| `make build-dash` | Build dashboard for production |
+| `make help` | Show all available commands |
+
+### Individual Components
+
+#### C++ Engine
 ```bash
 cd vcs-engine
 make          # Build all binaries to bin/
@@ -146,7 +188,7 @@ Binaries are output to `vcs-engine/bin/`:
 - `myvcs-history` - Tree & commit operations  
 - `myvcs-diff` - Diff & status engine
 
-### Node.js CLI
+#### Node.js CLI
 ```bash
 cd vcs-cli
 npm install
@@ -168,25 +210,47 @@ Create `.env` files with your Supabase credentials:
 ```
 SUPABASE_URL=your-project-url
 SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_KEY=your-service-key  # For seeding data (optional)
 ```
 
-**web-dashboard/.env**
+**web-dashboard/.env** (anon key only - never expose service key!)
 ```
 VITE_SUPABASE_URL=your-project-url
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
+### Supabase Key Security
+
+| Key | Purpose | Safe for Frontend? |
+|-----|---------|-------------------|
+| anon key | Read public data, user auth | ✅ Yes |
+| service_role key | Bypass RLS, admin operations | ❌ Never! |
+
 ## Testing
 
-### Quick Test (All Components)
-
-Run the automated test script from the project root:
+### Test Commands
 
 ```bash
-./test.sh
+# From project root
+make test         # Basic tests
+make test-all     # All tests (basic + stress)
+make test-quick   # Quick smoke test (~2s)
+make test-stress  # Full stress test (~30s)
+
+# Or run directly
+./tests/run.sh          # Run all tests
+./tests/run.sh quick    # Quick smoke test
+./tests/run.sh basic    # Basic functionality
+./tests/run.sh stress   # Stress tests
 ```
 
-This tests: C++ build, storage, diff, history, Node.js CLI, and React dashboard config.
+### Test Coverage
+
+| Test Suite | Duration | Coverage |
+|------------|----------|----------|
+| quick | ~2s | Binaries exist, CLI loads, init/hash/diff work |
+| basic | ~10s | Full build, storage ops, diff engine, CLI commands |
+| stress | ~30s | 50 files, 10 commits, 6 authors, branching, rapid ops |
 
 ### Manual Testing
 
@@ -290,27 +354,30 @@ npm run dev
    -- Copy contents of supabase-schema.sql
    ```
 
-3. Get your credentials from Project Settings > API
+3. Get your credentials from Project Settings > API:
+   - Project URL
+   - anon/public key (for frontend + CLI)
+   - service_role key (for seeding data - CLI only!)
 
-4. Configure environment files:
+4. Configure environment files (see Configuration section above)
+
+5. Seed test data:
    ```bash
-   # vcs-cli/.env
-   SUPABASE_URL=https://xxxxx.supabase.co
-   SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
+   # Option 1: Run the seed script (requires service_role key in CLI .env)
+   cd vcs-cli && node src/seed.js
    
-   # web-dashboard/.env
-   VITE_SUPABASE_URL=https://xxxxx.supabase.co
-   VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
+   # Option 2: Run SQL directly in Supabase SQL Editor
+   # Copy contents of tests/seed-data.sql
    ```
 
-5. Test sync:
+6. Test sync:
    ```bash
    cd /tmp/myproject
    myvcs commit -m "Test sync" -a "User" -e "user@test.com"
    # Commit metadata syncs to Supabase
    ```
 
-6. View in dashboard:
+7. View in dashboard:
    ```bash
    cd web-dashboard && npm run dev
    # Navigate to /commits to see synced data

@@ -55,7 +55,19 @@ clean-engine:
 
 # Run test suite
 test: engine cli
-	@./test.sh
+	@./tests/run.sh basic
+
+# Run all tests (basic + stress)
+test-all: engine cli
+	@./tests/run.sh all
+
+# Run stress tests
+test-stress: engine cli
+	@./tests/run.sh stress
+
+# Run quick smoke test
+test-quick: engine cli
+	@./tests/run.sh quick
 
 # Start dashboard development server
 run-dash: dashboard
@@ -83,7 +95,10 @@ help:
 	@echo "  uninstall    Remove global CLI installation"
 	@echo "  clean        Clean all builds and node_modules"
 	@echo "  clean-engine Clean only C++ builds"
-	@echo "  test         Run automated test suite"
+	@echo "  test         Run basic test suite"
+	@echo "  test-all     Run all tests (basic + stress)"
+	@echo "  test-stress  Run stress tests only"
+	@echo "  test-quick   Run quick smoke test"
 	@echo "  run-dash     Start dashboard dev server"
 	@echo "  build-dash   Build dashboard for production"
 	@echo "  help         Show this help message"
