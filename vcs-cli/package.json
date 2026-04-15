@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node src/main.js",
     "dev": "node --watch src/main.js",
-    "test": "node --test"
+    "test": "node --test",
+    "seed:auth-users": "node src/seed-auth-users.js"
   },
   "keywords": [
     "vcs",

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { useAuthz } from '../context/AuthzContext.jsx'
+import AccessDenied from '../components/AccessDenied.jsx'
 
 // SVG Icons
 const DocumentTextIcon = () => (
@@ -30,6 +32,7 @@ const LoadingSpinner = () => (
 )
 
 function Dashboard() {
+  const { canView } = useAuthz()
   const [stats, setStats] = useState({
     commits: 0,
     branches: 0,
@@ -37,34 +40,46 @@ function Dashboard() {
   })
   const [recentCommits, setRecentCommits] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const canAccess = canView('dashboard')
 
   useEffect(() => {
+    if (!canAccess) {
+      setLoading(false)
+      return
+    }
     fetchDashboardData()
-  }, [])
+  }, [canAccess])
 
   async function fetchDashboardData() {
     try {
       // Fetch commit count
-      const { count: commitCount } = await supabase
+      const { count: commitCount, error: commitCountError } = await supabase
         .from('commits')
         .select('*', { count: 'exact', head: true })
+      if (commitCountError) throw commitCountError
 
       // Fetch branch count
-      const { count: branchCount } = await supabase
+      const { count: branchCount, error: branchCountError } = await supabase
         .from('branches')
         .select('*', { count: 'exact', head: true })
+      if (branchCountError) throw branchCountError
 
       // Fetch user count
-      const { count: userCount } = await supabase
+      const { count: userCount, error: userCountError } = await supabase
         .from('users')
         .select('*', { count: 'exact', head: true })
+      if (userCountError) throw userCountError
 
       // Fetch recent commits
-      const { data: commits } = await supabase
+      const { data: commits, error: commitsError } = await supabase
         .from('commits')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(5)
+      if (commitsError) throw commitsError
+
+      setError(null)
 
       setStats({
         commits: commitCount || 0,
@@ -74,9 +89,14 @@ function Dashboard() {
       setRecentCommits(commits || [])
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
+      setError(error.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!canAccess) {
+    return <AccessDenied message='Your role does not include dashboard visibility.' />
   }
 
   if (loading) {
@@ -86,6 +106,12 @@ function Dashboard() {
   return (
     <div className="animate-fade-in">
       <h2 className="text-3xl font-bold text-zinc-100 mb-8">Dashboard</h2>
+
+      {error && (
+        <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg mb-6">
+          {error}
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

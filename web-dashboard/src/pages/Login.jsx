@@ -1,14 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { useAuthz } from '../context/AuthzContext.jsx'
 
 function Login() {
   const navigate = useNavigate()
+  const { user, loading: authLoading } = useAuthz()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [mode, setMode] = useState('login') // 'login' or 'signup'
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/', { replace: true })
+    }
+  }, [authLoading, user, navigate])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -29,7 +37,7 @@ function Login() {
         })
         if (error) throw error
       }
-      navigate('/')
+      navigate('/', { replace: true })
     } catch (err) {
       setError(err.message)
     } finally {

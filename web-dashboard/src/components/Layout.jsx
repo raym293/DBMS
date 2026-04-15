@@ -1,4 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
+import { useAuthz } from '../context/AuthzContext.jsx'
 
 // SVG Icons
 const ChartBarIcon = () => (
@@ -27,13 +28,23 @@ const UsersIcon = () => (
 
 function Layout() {
   const location = useLocation()
+  const { canView, profile, role, signOut } = useAuthz()
   
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: ChartBarIcon },
-    { path: '/commits', label: 'Commits', icon: DocumentTextIcon },
-    { path: '/branches', label: 'Branches', icon: BranchIcon },
-    { path: '/users', label: 'Users', icon: UsersIcon },
+    { path: '/', label: 'Dashboard', icon: ChartBarIcon, resource: 'dashboard' },
+    { path: '/commits', label: 'Commits', icon: DocumentTextIcon, resource: 'commits' },
+    { path: '/branches', label: 'Branches', icon: BranchIcon, resource: 'branches' },
+    { path: '/users', label: 'Users', icon: UsersIcon, resource: 'users' },
   ]
+  const visibleNavItems = navItems.filter((item) => canView(item.resource))
+
+  async function handleSignOut() {
+    try {
+      await signOut()
+    } catch (err) {
+      console.error('Sign out failed:', err.message)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-vcs-dark flex flex-col">
@@ -45,7 +56,7 @@ function Layout() {
             <span className="text-zinc-200">VCS</span>
           </h1>
           <nav className="flex space-x-2">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const IconComponent = item.icon
               return (
                 <Link
@@ -63,12 +74,19 @@ function Layout() {
               )
             })}
           </nav>
-          <Link
-            to="/login"
-            className="bg-vcs-primary hover:bg-vcs-secondary text-white px-4 py-2 rounded-lg transition-smooth hover:shadow-lg hover:shadow-vcs-primary/25"
-          >
-            Login
-          </Link>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-zinc-200 text-sm font-medium">{profile?.username || 'User'}</p>
+              <p className="text-zinc-500 text-xs uppercase tracking-wider">{role}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="bg-vcs-primary hover:bg-vcs-secondary text-white px-4 py-2 rounded-lg transition-smooth hover:shadow-lg hover:shadow-vcs-primary/25"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 

@@ -12,6 +12,37 @@ INSERT INTO users (username, email, role) VALUES
   ('moksh', 'moksh@myvcs.dev', 'user')
 ON CONFLICT (email) DO NOTHING;
 
+-- Insert role-aligned view grants for dashboard resources
+INSERT INTO access_control (user_id, resource, permission_type)
+SELECT id, resource, permission_type
+FROM (
+  VALUES
+    -- Admin: dashboard, commits, branches, users
+    ('akshat@myvcs.dev', 'dashboard', 'admin'),
+    ('akshat@myvcs.dev', 'commits', 'admin'),
+    ('akshat@myvcs.dev', 'branches', 'admin'),
+    ('akshat@myvcs.dev', 'users', 'admin'),
+    ('raymond@myvcs.dev', 'dashboard', 'admin'),
+    ('raymond@myvcs.dev', 'commits', 'admin'),
+    ('raymond@myvcs.dev', 'branches', 'admin'),
+    ('raymond@myvcs.dev', 'users', 'admin'),
+    -- User: dashboard, commits, branches
+    ('kevalina@myvcs.dev', 'dashboard', 'read'),
+    ('kevalina@myvcs.dev', 'commits', 'read'),
+    ('kevalina@myvcs.dev', 'branches', 'read'),
+    ('anoushka@myvcs.dev', 'dashboard', 'read'),
+    ('anoushka@myvcs.dev', 'commits', 'read'),
+    ('anoushka@myvcs.dev', 'branches', 'read'),
+    ('shlok@myvcs.dev', 'dashboard', 'read'),
+    ('shlok@myvcs.dev', 'commits', 'read'),
+    ('shlok@myvcs.dev', 'branches', 'read'),
+    ('moksh@myvcs.dev', 'dashboard', 'read'),
+    ('moksh@myvcs.dev', 'commits', 'read'),
+    ('moksh@myvcs.dev', 'branches', 'read')
+) grants(email, resource, permission_type)
+JOIN users u ON u.email = grants.email
+ON CONFLICT (user_id, resource, permission_type) DO NOTHING;
+
 -- Insert test branches
 INSERT INTO branches (ref_name, commit_hash) VALUES
   ('main', 'a1b2c3d4e5f6789012345678901234567890abcd'),
@@ -48,6 +79,8 @@ INSERT INTO transactions (action, details) VALUES
 
 -- Verify counts
 SELECT 'users' as table_name, COUNT(*) as count FROM users
+UNION ALL
+SELECT 'access_control', COUNT(*) FROM access_control
 UNION ALL
 SELECT 'commits', COUNT(*) FROM commits
 UNION ALL

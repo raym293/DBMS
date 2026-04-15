@@ -91,48 +91,120 @@ ALTER TABLE branches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE access_control ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
--- Users: Users can read all, but only update their own
-CREATE POLICY "Users can view all users" ON users
-  FOR SELECT USING (true);
+-- Remove existing policies before recreating them.
+DO $$
+BEGIN
+  -- users
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'users' AND policyname = 'Users can view all users') THEN
+    DROP POLICY "Users can view all users" ON users;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'users' AND policyname = 'Users can update own profile') THEN
+    DROP POLICY "Users can update own profile" ON users;
+  END IF;
 
-CREATE POLICY "Users can update own profile" ON users
-  FOR UPDATE USING (auth.uid() = id);
+  -- commits
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'commits' AND policyname = 'Anyone can view commits') THEN
+    DROP POLICY "Anyone can view commits" ON commits;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'commits' AND policyname = 'Authenticated users can insert commits') THEN
+    DROP POLICY "Authenticated users can insert commits" ON commits;
+  END IF;
 
--- Commits: Everyone can read, authenticated can write
-CREATE POLICY "Anyone can view commits" ON commits
-  FOR SELECT USING (true);
+  -- branches
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'branches' AND policyname = 'Anyone can view branches') THEN
+    DROP POLICY "Anyone can view branches" ON branches;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'branches' AND policyname = 'Authenticated users can manage branches') THEN
+    DROP POLICY "Authenticated users can manage branches" ON branches;
+  END IF;
+
+  -- access_control
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'access_control' AND policyname = 'Users can view own permissions') THEN
+    DROP POLICY "Users can view own permissions" ON access_control;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'access_control' AND policyname = 'Admins can manage permissions') THEN
+    DROP POLICY "Admins can manage permissions" ON access_control;
+  END IF;
+
+  -- transactions
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'transactions' AND policyname = 'Users can view own transactions') THEN
+    DROP POLICY "Users can view own transactions" ON transactions;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'transactions' AND policyname = 'Admins can view all transactions') THEN
+    DROP POLICY "Admins can view all transactions" ON transactions;
+  END IF;
+END $$;
+
+-- Helper functions for dashboard view rights.
+CREATE OR REPLACE FUNCTION current_user_role()
+RETURNS TEXT AS $$
+  SELECT COALESCE(
+    (SELECT role FROM users WHERE id = auth.uid()),
+    'viewer'
+  );
+$$ LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION can_view_resource(resource_name TEXT)
+RETURNS BOOLEAN AS $$
+DECLARE
+  role_name TEXT := current_user_role();
+BEGIN
+  RETURN CASE role_name
+    WHEN 'admin' THEN resource_name IN ('dashboard', 'commits', 'branches', 'users')
+    WHEN 'user' THEN resource_name IN ('dashboard', 'commits', 'branches')
+    WHEN 'viewer' THEN resource_name IN ('dashboard', 'commits')
+    ELSE FALSE
+  END;
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION current_user_role() TO authenticated;
+GRANT EXECUTE ON FUNCTION can_view_resource(TEXT) TO authenticated;
+
+-- Users:
+-- - Users can insert and view/update their own profile
+-- - Admin can view/update all profiles
+CREATE POLICY "Users can insert own profile" ON users
+  FOR INSERT WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can view own profile or admin all" ON users
+  FOR SELECT USING (auth.uid() = id OR current_user_role() = 'admin');
+
+CREATE POLICY "Users can update own profile or admin all" ON users
+  FOR UPDATE USING (auth.uid() = id OR current_user_role() = 'admin');
+
+-- Commits:
+-- - Read allowed by role matrix
+-- - Write allowed for authenticated users
+CREATE POLICY "Role-based commits read access" ON commits
+  FOR SELECT USING (can_view_resource('commits'));
 
 CREATE POLICY "Authenticated users can insert commits" ON commits
   FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
--- Branches: Everyone can read, authenticated can write
-CREATE POLICY "Anyone can view branches" ON branches
-  FOR SELECT USING (true);
+-- Branches:
+-- - Read allowed by role matrix
+-- - Write allowed for authenticated users
+CREATE POLICY "Role-based branches read access" ON branches
+  FOR SELECT USING (can_view_resource('branches'));
 
 CREATE POLICY "Authenticated users can manage branches" ON branches
   FOR ALL USING (auth.role() = 'authenticated');
 
--- Access Control: Users can view their own permissions
+-- Access Control:
+-- - Users can view their own grants
+-- - Admin can view/manage all grants
 CREATE POLICY "Users can view own permissions" ON access_control
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING (auth.uid() = user_id OR current_user_role() = 'admin');
 
 CREATE POLICY "Admins can manage permissions" ON access_control
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  FOR ALL USING (current_user_role() = 'admin');
 
--- Transactions: Users can view their own, admins can view all
+-- Transactions:
+-- - Users can view their own logs
+-- - Admin can view all logs
 CREATE POLICY "Users can view own transactions" ON transactions
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Admins can view all transactions" ON transactions
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  FOR SELECT USING (auth.uid() = user_id OR current_user_role() = 'admin');
 
 -- ============================================================================
 -- Functions & Triggers

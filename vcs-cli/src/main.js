@@ -18,6 +18,7 @@ import { initRepo, findRepoRoot } from './staging.js';
 import { add, status, commit } from './staging.js';
 import { log, branch, checkout, getCurrentBranch } from './refs.js';
 import { spawnCppBinary, diff } from './utils.js';
+import { isConfigured, syncCommit, syncBranch } from './supabase.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -167,6 +168,26 @@ program
             if (result.success) {
                 console.log(`[${chalk.cyan(result.branch)} ${chalk.yellow(result.hash.slice(0, 7))}] ${options.message}`);
                 console.log(` ${result.filesChanged} file(s) changed`);
+
+                if (isConfigured()) {
+                    const commitSync = await syncCommit({
+                        hash: result.hash,
+                        tree: result.tree,
+                        parent: result.parent,
+                        author: result.author,
+                        message: options.message,
+                        timestamp: result.timestamp
+                    });
+
+                    if (!commitSync.success) {
+                        console.warn(chalk.yellow(`Warning: commit not synced to Supabase: ${commitSync.error}`));
+                    }
+
+                    const branchSync = await syncBranch(result.branch, result.hash);
+                    if (!branchSync.success) {
+                        console.warn(chalk.yellow(`Warning: branch not synced to Supabase: ${branchSync.error}`));
+                    }
+                }
             } else {
                 console.error(chalk.red(`Error: ${result.error}`));
                 process.exit(1);

@@ -238,16 +238,50 @@ async function computeHashJS(filePath) {
 }
 
 /**
+ * Load the last commit's tree to compare against
+ * @param {string} repoRoot - Repository root path
+ * @returns {Map<string, string>} Map of path to hash from last commit
+ */
+function loadCommittedFiles(repoRoot) {
+    const committed = new Map();
+    const headCommit = getHeadCommit(repoRoot);
+    
+    if (!headCommit) {
+        return committed;
+    }
+    
+    // Read the commit's tree from .myvcs/commits/<hash>
+    const commitFile = join(repoRoot, '.myvcs', 'commits', headCommit);
+    if (!existsSync(commitFile)) {
+        return committed;
+    }
+    
+    try {
+        const commitData = JSON.parse(readFileSync(commitFile, 'utf-8'));
+        if (commitData.files) {
+            for (const [path, hash] of Object.entries(commitData.files)) {
+                committed.set(path, hash);
+            }
+        }
+    } catch {
+        // Ignore parse errors
+    }
+    
+    return committed;
+}
+
+/**
  * Get working tree status
  * @param {string} repoRoot - Repository root path
  * @returns {Promise<{staged: Array, modified: Array, deleted: Array, untracked: Array}>}
  */
 export async function status(repoRoot) {
     const index = loadIndex(repoRoot);
+    const committed = loadCommittedFiles(repoRoot);
     const workingFiles = new Set(getAllFiles(repoRoot).map(f => relative(repoRoot, f)));
     
     const result = {
-        staged: [],      // Files in index (ready to commit)
+        staged: [],      // Files in index that differ from last commit
         modified: [],    // Modified since staged
         deleted: [],     // Deleted from working dir
         untracked: []    // Not in index
@@ -260,7 +294,7 @@ export async function status(repoRoot) {
         if (!existsSync(absolutePath)) {
             result.deleted.push(path);
         } else {
-            // Check if modified
+            // Check if modified since staged
             let currentHash;
             try {
                 currentHash = await computeHashJS(absolutePath);
@@ -269,10 +303,16 @@ export async function status(repoRoot) {
             }
             
             if (currentHash !== entry.hash) {
+                // File modified since it was staged
                 result.modified.push(path);
             } else {
-                // File is staged and unchanged
-                result.staged.push({ path, status: 'staged' });
+                // Check if this file differs from last commit (i.e., is staged for commit)
+                const committedHash = committed.get(path);
+                if (committedHash !== entry.hash) {
+                    // File is staged (new or modified vs last commit)
+                    result.staged.push({ path, status: 'staged' });
+                }
+                // If hash matches committed, file is unchanged - don't show it
             }
         }
     }
@@ -298,9 +338,23 @@ export async function commit(repoRoot, options) {
     
     try {
         const index = loadIndex(repoRoot);
+        const committed = loadCommittedFiles(repoRoot);
+        
+        // Check if there are actually changes to commit
+        let hasChanges = false;
+        for (const [path, entry] of index) {
+            if (committed.get(path) !== entry.hash) {
+                hasChanges = true;
+                break;
+            }
+        }
         
         if (index.size === 0) {
             return { success: false, error: 'nothing to commit (create/copy files and use "myvcs add" to track)' };
+        }
+        
+        if (!hasChanges && committed.size > 0) {
+            return { success: false, error: 'nothing to commit, working tree clean' };
         }
         
         // Build tree from index
@@ -333,11 +387,36 @@ export async function commit(repoRoot, options) {
         const branch = getCurrentBranch(repoRoot);
         updateBranchRef(repoRoot, branch, commitHash);
         
+        // Save commit metadata including files for status comparison
+        const commitsDir = join(repoRoot, '.myvcs', 'commits');
+        if (!existsSync(commitsDir)) {
+            await mkdir(commitsDir, { recursive: true });
+        }
+        
+        const filesMap = {};
+        for (const [path, entry] of index) {
+            filesMap[path] = entry.hash;
+        }
+        
+        writeFileSync(join(commitsDir, commitHash), JSON.stringify({
+            tree: treeHash,
+            parent: parentHash !== '-' ? parentHash : null,
+            author,
+            email,
+            message,
+            timestamp: Math.floor(Date.now() / 1000),
+            files: filesMap
+        }, null, 2));
+        
         return {
             success: true,
             hash: commitHash,
             branch,
-            filesChanged: index.size
+            filesChanged: index.size,
+            tree: treeHash,
+            parent: parentHash !== '-' ? parentHash : null,
+            author,
+            timestamp: Math.floor(Date.now() / 1000)
         };
     } catch (err) {
         return { success: false, error: err.message };

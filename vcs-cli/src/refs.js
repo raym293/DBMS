@@ -6,7 +6,7 @@
  * to traverse the commit chain, and manages branch operations.
  */
 
-import { existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync, mkdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { mkdir } from 'fs/promises';
 import { spawnCppBinary } from './utils.js';
@@ -75,7 +75,7 @@ export function updateBranchRef(repoRoot, branchName, commitHash) {
     const refDir = dirname(refPath);
     
     if (!existsSync(refDir)) {
-        require('fs').mkdirSync(refDir, { recursive: true });
+        mkdirSync(refDir, { recursive: true });
     }
     
     writeFileSync(refPath, commitHash + '\n');
@@ -228,7 +228,7 @@ export const branch = {
         
         const branches = readdirSync(headsDir).filter(f => {
             const fullPath = join(headsDir, f);
-            return existsSync(fullPath) && !require('fs').statSync(fullPath).isDirectory();
+            return existsSync(fullPath) && !statSync(fullPath).isDirectory();
         });
         
         if (branches.length === 0) {

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { useAuthz } from '../context/AuthzContext.jsx'
+import AccessDenied from '../components/AccessDenied.jsx'
 
 // Loading spinner
 const LoadingSpinner = () => (
@@ -11,12 +13,19 @@ const LoadingSpinner = () => (
 )
 
 function Commits() {
+  const { canView } = useAuthz()
   const [commits, setCommits] = useState([])
   const [loading, setLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState(null)
+  const canAccess = canView('commits')
 
   useEffect(() => {
+    if (!canAccess) {
+      setLoading(false)
+      return
+    }
     fetchCommits()
-  }, [])
+  }, [canAccess])
 
   async function fetchCommits() {
     try {
@@ -27,11 +36,17 @@ function Commits() {
 
       if (error) throw error
       setCommits(data || [])
+      setErrorMessage(null)
     } catch (error) {
       console.error('Error fetching commits:', error)
+      setErrorMessage(error.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!canAccess) {
+    return <AccessDenied message='Your role does not include commit history access.' />
   }
 
   if (loading) {
@@ -41,6 +56,12 @@ function Commits() {
   return (
     <div className="animate-fade-in">
       <h2 className="text-3xl font-bold text-zinc-100 mb-8">Commit History</h2>
+
+      {errorMessage && (
+        <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg mb-6">
+          {errorMessage}
+        </div>
+      )}
 
       {commits.length === 0 ? (
         <div className="bg-vcs-surface rounded-xl border border-vcs-border p-8 text-center">

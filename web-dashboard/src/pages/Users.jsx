@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { useAuthz } from '../context/AuthzContext.jsx'
+import AccessDenied from '../components/AccessDenied.jsx'
 
 // Loading spinner
 const LoadingSpinner = () => (
@@ -11,13 +13,20 @@ const LoadingSpinner = () => (
 )
 
 function Users() {
+  const { canView } = useAuthz()
   const [users, setUsers] = useState([])
   const [accessControls, setAccessControls] = useState([])
   const [loading, setLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState(null)
+  const canAccess = canView('users')
 
   useEffect(() => {
+    if (!canAccess) {
+      setLoading(false)
+      return
+    }
     fetchData()
-  }, [])
+  }, [canAccess])
 
   async function fetchData() {
     try {
@@ -26,10 +35,15 @@ function Users() {
         supabase.from('access_control').select('*')
       ])
 
+      if (usersResult.error) throw usersResult.error
+      if (accessResult.error) throw accessResult.error
+
       setUsers(usersResult.data || [])
       setAccessControls(accessResult.data || [])
+      setErrorMessage(null)
     } catch (error) {
       console.error('Error fetching data:', error)
+      setErrorMessage(error.message)
     } finally {
       setLoading(false)
     }
@@ -43,9 +57,19 @@ function Users() {
     return <LoadingSpinner />
   }
 
+  if (!canAccess) {
+    return <AccessDenied message='Only administrators can view users and access control.' />
+  }
+
   return (
     <div className="animate-fade-in">
       <h2 className="text-3xl font-bold text-zinc-100 mb-8">Users & Access Control</h2>
+
+      {errorMessage && (
+        <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg mb-6">
+          {errorMessage}
+        </div>
+      )}
 
       {users.length === 0 ? (
         <div className="bg-vcs-surface rounded-xl border border-vcs-border p-8 text-center">

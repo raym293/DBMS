@@ -21,9 +21,14 @@ config({ path: join(__dirname, '../.env') });
 // Supabase configuration
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'placeholder-key';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
-// Create Supabase client
+// Create Supabase clients
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const syncClient = createClient(
+    SUPABASE_URL,
+    SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY
+);
 
 /**
  * Check if Supabase is configured
@@ -153,7 +158,7 @@ export async function syncCommit(commitData) {
     }
 
     try {
-        const { error } = await supabase.from('commits').upsert({
+        const { error } = await syncClient.from('commits').upsert({
             commit_hash: commitData.hash,
             tree_hash: commitData.tree,
             parent_hash: commitData.parent || null,
@@ -230,7 +235,7 @@ export async function syncBranch(branchName, commitHash) {
     }
 
     try {
-        const { error } = await supabase.from('branches').upsert({
+        const { error } = await syncClient.from('branches').upsert({
             ref_name: branchName,
             commit_hash: commitHash,
             updated_at: new Date().toISOString()

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { useAuthz } from '../context/AuthzContext.jsx'
+import AccessDenied from '../components/AccessDenied.jsx'
 
 // Loading spinner
 const LoadingSpinner = () => (
@@ -18,12 +20,19 @@ const BranchIcon = ({ className = "w-5 h-5" }) => (
 )
 
 function Branches() {
+  const { canView } = useAuthz()
   const [branches, setBranches] = useState([])
   const [loading, setLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState(null)
+  const canAccess = canView('branches')
 
   useEffect(() => {
+    if (!canAccess) {
+      setLoading(false)
+      return
+    }
     fetchBranches()
-  }, [])
+  }, [canAccess])
 
   async function fetchBranches() {
     try {
@@ -34,11 +43,17 @@ function Branches() {
 
       if (error) throw error
       setBranches(data || [])
+      setErrorMessage(null)
     } catch (error) {
       console.error('Error fetching branches:', error)
+      setErrorMessage(error.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!canAccess) {
+    return <AccessDenied message='Your role does not include branch visibility.' />
   }
 
   if (loading) {
@@ -48,6 +63,12 @@ function Branches() {
   return (
     <div className="animate-fade-in">
       <h2 className="text-3xl font-bold text-zinc-100 mb-8">Branches</h2>
+
+      {errorMessage && (
+        <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg mb-6">
+          {errorMessage}
+        </div>
+      )}
 
       {branches.length === 0 ? (
         <div className="bg-vcs-surface rounded-xl border border-vcs-border p-8 text-center">
