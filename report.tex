@@ -1,0 +1,501 @@
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{parskip}
+
+\geometry{margin=1in}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+\newcommand{\demoimage}[2]{%
+    \IfFileExists{#1}{%
+        \includegraphics[width=\linewidth,height=8cm,keepaspectratio]{#1}%
+    }{%
+        \fbox{%
+            \parbox[c][5cm][c]{0.92\linewidth}{%
+                \centering
+                \textbf{Screenshot missing}\\
+                \texttt{#1}\\[0.4em]
+                #2
+            }%
+        }%
+    }%
+}
+
+\title{\textbf{MyVCS --- Custom Version Control System}\\[0.5em]
+       \large Group Project Technical Report}
+\author{
+    Akshat (2023B5A70994G) \and
+    Kevalina Bhattacharyya (2023B4A70930G) \and
+    Raymond (2023B4A70905G) \and
+    Anoushka Gupta (2023B4A70903G) \and
+    Shlok Upadhyay (2023B2A71166G) \and
+    Moksh (2023B3A70812G)
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =============================================================================
+\section{Project Overview}
+% =============================================================================
+
+MyVCS is a custom Version Control System modelled after Git, built as a
+multi-component system that combines a high-performance C++ core engine, a
+Node.js command-line interface, a React-based web dashboard, and a Supabase
+cloud backend for persistent metadata storage.  The system supports standard
+version-control operations including \texttt{init}, \texttt{add},
+\texttt{commit}, \texttt{status}, \texttt{diff}, \texttt{log},
+\texttt{branch}, and \texttt{checkout}.
+
+% =============================================================================
+\section{Member Contributions}
+% =============================================================================
+
+The table below summarises the primary contribution of each team member as
+declared in \texttt{contributions.txt}.  Any project module or task not
+explicitly listed in that file has been attributed to \textbf{Raymond}.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{l l p{7cm}}
+\toprule
+Member & Student ID & Primary Contribution \\
+\midrule
+\textbf{Akshat}
+    & 2023B5A70994G
+    & Core Database \& Hashing --- SHA-1/MD5 hashing, zlib compression,
+      blob storage, and the foundational \texttt{Blob} class
+      (\texttt{storage.cpp}). \\
+\textbf{Kevalina Bhattacharyya}
+    & 2023B4A70930G
+    & Front-End Development \& Access-Control Interface --- React dashboard
+      (commits, branches, users), React Router, TailwindCSS, and
+      frontend route/component-level access-control
+      (\texttt{web-dashboard/}, \texttt{staging.js}). \\
+\textbf{Raymond}
+    & 2023B4A70905G
+    & Supabase Integration \& Architecture --- Tree and Commit objects
+      (Merkle trees, author/date metadata), Supabase cloud-backend
+      integration, schema design, seed scripts, build system, and
+      overall project architecture
+      (\texttt{history.cpp}, \texttt{supabase-schema.sql},
+       \texttt{Makefile}, \texttt{tests/}). \\
+\textbf{Anoushka Gupta}
+    & 2023B4A70903G
+    & Refs, Timeline Navigation \& Security Integration ---
+      \texttt{.myvcs/refs} management, branch creation, HEAD pointer,
+      \texttt{log} command, automated test-account creation, auth-profile
+      synchronisation, and RBAC policies for Admin/User/Viewer tiers
+      (\texttt{refs.js}, \texttt{seed-auth-users.js}). \\
+\textbf{Shlok Upadhyay}
+    & 2023B2A71166G
+    & Analytical Engine \& Status --- Line-by-line diff algorithm,
+      file-version comparison, and the \texttt{status} command
+      (Modified / Deleted / Untracked)
+      (\texttt{diff.cpp}). \\
+\textbf{Moksh}
+    & 2023B3A70812G
+    & CLI Interface \& Worktree Management --- Commander.js argument
+      parsing, the main CLI entry point, C++ binary process-spawning,
+      and the \texttt{checkout} worktree restore logic
+      (\texttt{main.js}, \texttt{utils.js}). \\
+\bottomrule
+\end{tabular}
+\caption{Member contribution breakdown}
+\label{tab:contributions}
+\end{table}
+
+% =============================================================================
+\section{Technical Overview}
+% =============================================================================
+
+\subsection{Architecture}
+
+MyVCS follows a layered architecture with four distinct tiers:
+
+\begin{itemize}
+    \item \textbf{Front-End (Web Dashboard)} --- A React~18 single-page
+          application built with Vite and styled using TailwindCSS.  It
+          provides a dark-themed, animated interface for browsing commit
+          history, branches, and user management.  Routing is handled by
+          React Router~DOM and the Supabase JavaScript client is used
+          directly from the browser (anon key only).
+
+    \item \textbf{Backend / CLI} --- A Node.js~18 CLI tool
+          (\texttt{myvcs}) built with Commander.js.  It orchestrates all
+          VCS operations, manages the local \texttt{.myvcs/} repository
+          directory, and spawns the C++ engine binaries for
+          performance-critical work.  The CLI also synchronises commit
+          and branch metadata to Supabase after each write operation.
+
+    \item \textbf{C++ Core Engine} --- Three compiled binaries provide
+          the computational backbone:
+          \begin{itemize}
+              \item \texttt{myvcs-storage} --- SHA-1 hashing and zlib
+                    compression of objects.
+              \item \texttt{myvcs-history} --- Merkle-tree construction
+                    and commit-chain management.
+              \item \texttt{myvcs-diff} --- Unified diff and working-tree
+                    status comparison.
+          \end{itemize}
+
+    \item \textbf{Database (Supabase / PostgreSQL)} --- A hosted
+          Supabase project stores users, commits, branches,
+          access-control grants, and an audit-log transaction table.
+          Row-Level Security (RLS) policies enforce role-based access at
+          the database layer.
+\end{itemize}
+
+The high-level data flow is:
+
+\begin{center}
+\texttt{User $\rightarrow$ CLI (Node.js) $\rightarrow$ C++ Binaries}\\[0.3em]
+\texttt{CLI $\rightarrow$ Supabase (metadata sync) $\rightarrow$ React Dashboard}
+\end{center}
+
+\subsection{User Access Control}
+
+Access control is enforced at two levels: the Supabase Row-Level Security
+layer (backend) and the React dashboard (frontend route/component guards).
+
+Users are assigned one of three roles stored in the \texttt{users.role}
+column:
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{l l p{7.5cm}}
+\toprule
+Role & Privilege Level & Accessible Resources \\
+\midrule
+\textbf{admin}
+    & Full access
+    & Dashboard, Commits, Branches, Users table; can manage all
+      \texttt{access\_control} grants and view all audit-log
+      transactions. \\
+\textbf{user}
+    & Standard access
+    & Dashboard, Commits, Branches; can insert new commits and manage
+      branches; can view and update own profile only. \\
+\textbf{viewer}
+    & Read-only access
+    & Dashboard, Commits (read-only); cannot access Branches or Users
+      pages; cannot create commits or branches. \\
+\bottomrule
+\end{tabular}
+\caption{Role-based access-control matrix}
+\label{tab:rbac}
+\end{table}
+
+The helper function \texttt{can\_view\_resource(resource\_name)} is
+defined in the Supabase schema and is called by every RLS policy to
+enforce the matrix above uniformly across all tables.
+
+\subsection{Module Breakdown}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{l l l p{5.5cm}}
+\toprule
+Module & File & Author & Description \\
+\midrule
+Object Storage  & \texttt{storage.cpp}   & Akshat    &
+    SHA-1 hashing, zlib blob compression, \texttt{.myvcs/objects/}
+    write/read. \\
+Tree \& Commit  & \texttt{history.cpp}   & Raymond   &
+    Merkle tree construction, commit-object serialisation, parent-chain
+    linking. \\
+Diff Engine     & \texttt{diff.cpp}      & Shlok     &
+    Line-by-line unified diff, Modified/Deleted/Untracked status. \\
+CLI Entry       & \texttt{main.js}       & Moksh     &
+    Commander.js routing, C++ process-spawning, checkout worktree
+    restore. \\
+Staging         & \texttt{staging.js}    & Kevalina  &
+    \texttt{.myvcs/index} management, \texttt{add} command, repo
+    initialisation. \\
+Refs Manager    & \texttt{refs.js}       & Anoushka  &
+    Branch creation, HEAD pointer management, \texttt{log} traversal. \\
+Supabase Client & \texttt{supabase.js}   & Raymond   &
+    Auth session management, commit/branch metadata sync to cloud. \\
+Web Dashboard   & \texttt{web-dashboard/} & Kevalina &
+    React SPA: Dashboard, Commits, Branches, Users, Login pages with
+    dark theme and animated UI. \\
+DB Schema       & \texttt{supabase-schema.sql} & Raymond &
+    PostgreSQL tables, RLS policies, helper functions, triggers. \\
+Build System    & \texttt{Makefile}      & Raymond   &
+    Root Makefile orchestrating C++ build, npm installs, tests. \\
+Test Suite      & \texttt{tests/}        & Raymond   &
+    Quick, basic, and stress shell-based test scripts. \\
+\bottomrule
+\end{tabular}
+\caption{Functional module breakdown}
+\label{tab:modules}
+\end{table}
+
+% =============================================================================
+\section{Visuals --- System Demo Screenshots}
+% =============================================================================
+
+\noindent Place screenshots under \texttt{figures/} using the filenames
+referenced below; they will be embedded automatically.
+
+\begin{figure}[htbp]
+    \centering
+    \demoimage{figures/demo-dashboard.png}{Web dashboard overview}
+    \caption{System Demo --- Web Dashboard: Overview page showing commit
+             count, branch count, and user count statistics cards together
+             with the recent-commit feed.}
+    \label{fig:demo-dashboard}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \demoimage{figures/demo-commits.png}{Commits page}
+    \caption{System Demo --- Commits page displaying the full commit
+             history table with hash, author, message, and timestamp
+             columns.}
+    \label{fig:demo-commits}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \demoimage{figures/demo-branches.png}{Branches page}
+    \caption{System Demo --- Branches page showing branch cards with
+             branch name and the associated latest commit hash.}
+    \label{fig:demo-branches}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \demoimage{figures/demo-users.png}{Users page}
+    \caption{System Demo --- Users page listing team members with their
+             assigned roles (admin / user / viewer) and permission
+             badges.}
+    \label{fig:demo-users}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \demoimage{figures/demo-cli.png}{CLI terminal session}
+    \caption{System Demo --- CLI terminal session: \texttt{myvcs init},
+             \texttt{myvcs add}, \texttt{myvcs commit}, \texttt{myvcs log},
+             and \texttt{myvcs diff} commands executed against a sample
+             repository.}
+    \label{fig:demo-cli}
+\end{figure}
+
+% =============================================================================
+\section{AI Integration \& API Endpoints}
+% =============================================================================
+
+\subsection{Overview}
+
+Because MyVCS exposes its backend data through Supabase's auto-generated
+REST API, any external AI agent (e.g.\ a Large Language Model tool-use
+agent, a CI/CD bot, or an autonomous code-review assistant) can consume
+these endpoints over HTTPS without additional server code.  Authentication
+is handled via Supabase JWTs; the agent must present a valid Bearer token
+obtained through the standard Supabase Auth flow.
+
+\subsection{Authentication}
+
+\noindent\textbf{Note:} Throughout this section, replace
+\texttt{<project-ref>} with your Supabase project reference ID, which is
+found in your Supabase dashboard under
+\textit{Project Settings $\rightarrow$ General $\rightarrow$ Reference ID}
+(e.g.\ \texttt{abcdefghijklmnop}).
+
+Before calling any protected endpoint the agent must authenticate:
+
+\begin{lstlisting}[language=bash, basicstyle=\ttfamily\small,
+                   breaklines=true, frame=single]
+POST https://<project-ref>.supabase.co/auth/v1/token?grant_type=password
+Content-Type: application/json
+
+{
+  "email": "agent@example.com",
+  "password": "<password>"
+}
+# Response contains: access_token (JWT), token_type, expires_in
+\end{lstlisting}
+
+All subsequent requests must include:
+
+\begin{lstlisting}[language=bash, basicstyle=\ttfamily\small,
+                   breaklines=true, frame=single]
+Authorization: Bearer <access_token>
+apikey: <SUPABASE_ANON_KEY>
+\end{lstlisting}
+
+\subsection{Available REST Endpoints}
+
+Supabase exposes a PostgREST-compatible REST layer at
+\texttt{https://<project-ref>.supabase.co/rest/v1/}.  The endpoints
+relevant to an AI agent are:
+
+\subsubsection{Commits}
+
+\begin{itemize}
+    \item \textbf{List commits}\\
+          \texttt{GET /rest/v1/commits?select=*\&order=created\_at.desc}\\
+          Returns the full commit log.  An agent can use this to build
+          context about the repository state before suggesting code changes.
+
+    \item \textbf{Filter commits by author}\\
+          \texttt{GET /rest/v1/commits?author\_id=eq.<author>\&select=*}\\
+          Useful for per-contributor analysis or automated code-review
+          assignment.
+
+    \item \textbf{Insert a commit} (authenticated, \texttt{user} role+)\\
+          \texttt{POST /rest/v1/commits}\\
+          Body: \texttt{\{"commit\_hash","tree\_hash","parent\_hash",
+          "author\_id","message"\}}\\
+          An agent driving an automated CI pipeline can push commit
+          metadata after a successful build.
+\end{itemize}
+
+\subsubsection{Branches}
+
+\begin{itemize}
+    \item \textbf{List branches}\\
+          \texttt{GET /rest/v1/branches?select=*}\\
+          Allows an agent to enumerate open feature branches and decide
+          which to review or merge.
+
+    \item \textbf{Update a branch pointer} (authenticated)\\
+          \texttt{PATCH /rest/v1/branches?ref\_name=eq.<branch>}\\
+          Body: \texttt{\{"commit\_hash": "<new-hash>"\}}\\
+          An automated merge agent uses this to advance a branch ref after
+          a successful merge operation.
+\end{itemize}
+
+\subsubsection{Users}
+
+\begin{itemize}
+    \item \textbf{List users} (\texttt{admin} role only)\\
+          \texttt{GET /rest/v1/users?select=id,username,role,email}\\
+          An orchestration agent can use this to look up user IDs when
+          assigning tasks or sending notifications.
+\end{itemize}
+
+\subsubsection{Access Control}
+
+\begin{itemize}
+    \item \textbf{Query permissions for a user} (\texttt{admin} or self)\\
+          \texttt{GET /rest/v1/access\_control?user\_id=eq.<uid>\&select=*}\\
+          An agent enforcing least-privilege policies can read and audit
+          permission grants.
+
+    \item \textbf{Grant a permission} (\texttt{admin} only)\\
+          \texttt{POST /rest/v1/access\_control}\\
+          Body: \texttt{\{"user\_id","resource","permission\_type"\}}
+\end{itemize}
+
+\subsubsection{Audit Log (Transactions)}
+
+\begin{itemize}
+    \item \textbf{Retrieve audit events}\\
+          \texttt{GET /rest/v1/transactions?order=created\_at.desc}\\
+          An AI monitoring agent can poll this endpoint to detect
+          anomalous activity patterns (e.g.\ bulk deletions, repeated
+          failed auth attempts stored as transaction records).
+\end{itemize}
+
+\subsection{Example Agent Workflow}
+
+Below is a representative task an AI agent could automate end-to-end
+using the endpoints described above:
+
+\begin{enumerate}
+    \item \textbf{Authenticate} --- obtain a JWT for the agent service
+          account.
+    \item \textbf{Poll \texttt{/branches}} --- detect any branch whose
+          \texttt{updated\_at} timestamp is more recent than the last
+          check.
+    \item \textbf{Fetch commits} on that branch via
+          \texttt{/commits?author\_id=...} and summarise the change log
+          using an LLM.
+    \item \textbf{Post a review comment} (via an external notification
+          webhook or email) addressed to the committer's username
+          retrieved from \texttt{/users}.
+    \item \textbf{Write an audit entry} to \texttt{/transactions}
+          recording the review action for traceability.
+\end{enumerate}
+
+This workflow requires only the standard Supabase anon/JWT credentials and
+no additional server-side code changes, making it straightforward to
+integrate external AI tooling with the existing MyVCS backend.
+
+% =============================================================================
+\section{Database Schema Summary}
+% =============================================================================
+
+The Supabase PostgreSQL schema consists of five primary tables:
+
+\begin{itemize}
+    \item \textbf{users} --- Stores user accounts with
+          \texttt{id} (UUID), \texttt{email}, \texttt{username}, and
+          \texttt{role} (\texttt{user} $|$ \texttt{admin} $|$
+          \texttt{viewer}).
+    \item \textbf{commits} --- Records every commit with
+          \texttt{commit\_hash}, \texttt{tree\_hash},
+          \texttt{parent\_hash}, \texttt{author\_id}, and
+          \texttt{message}.
+    \item \textbf{branches} --- Maps branch names (\texttt{ref\_name})
+          to their current \texttt{commit\_hash}.
+    \item \textbf{access\_control} --- Stores per-user resource
+          permission grants (\texttt{read} $|$ \texttt{write} $|$
+          \texttt{admin}).
+    \item \textbf{transactions} --- Append-only audit log of all
+          significant actions with a \texttt{details} JSONB field.
+\end{itemize}
+
+All tables have Row-Level Security enabled.  The helper functions
+\texttt{current\_user\_role()} and \texttt{can\_view\_resource()} are
+registered as \texttt{SECURITY DEFINER} SQL functions to prevent privilege
+escalation through direct function invocation.
+
+% =============================================================================
+\section{Build \& Deployment}
+% =============================================================================
+
+\subsection{Prerequisites}
+
+\begin{itemize}
+    \item \textbf{C++ toolchain}: \texttt{clang++} with C++17 support.
+    \item \textbf{Libraries}: OpenSSL (\texttt{libssl-dev}) and zlib
+          (\texttt{zlib1g-dev}).
+    \item \textbf{Node.js} 18 or later.
+    \item A \textbf{Supabase} project with the schema from
+          \texttt{supabase-schema.sql} applied.
+\end{itemize}
+
+\subsection{Build Commands}
+
+\begin{lstlisting}[language=bash, basicstyle=\ttfamily\small,
+                   breaklines=true, frame=single]
+make              # Build everything (C++ engine + npm deps)
+make install      # Build + install 'myvcs' CLI globally
+make test         # Run basic test suite
+make test-all     # Run all tests (basic + stress)
+make clean        # Remove all build artefacts
+\end{lstlisting}
+
+\end{document}
